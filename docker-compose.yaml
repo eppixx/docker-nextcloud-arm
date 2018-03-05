@@ -1,0 +1,56 @@
+#adapted from https://github.com/nextcloud/docker
+
+version: '2'
+
+services:
+  db:
+    container_name: nextcloud-mariadb
+    image: yobasystems/alpine-mariadb:armhf
+    restart: unless-stopped
+    volumes:
+      - /data/nextcloud/mariadb/db:/var/lib/mysql
+      - /data/nextcloud/mariadb/etc:/etc/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=randomPassword
+      - MYSQL_PASSWORD=randomPassword
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+
+  db_backup:
+    container_name: nextcloud-mariadb_backup
+    build: 
+      context: ./build-mariadb-backup
+      args:
+        - CRON_CMD=0 5 * * *
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      - DB_BACKUP_HOST=nextcloud-mariadb
+      - DB_BACKUP_PASSWORD=randomPassword
+      - DB_BACKUP_NAME=nextcloud_db
+    volumes:
+      - /data/nextcloud/mariadb_backup:/backup
+
+  app:
+    container_name: nextcloud-app
+    image: nextcloud
+    depends_on:
+      - db
+    restart: unless-stopped
+    ports:
+      - "9080:80"
+      - "9443:443"
+    volumes:
+      - /data/nextcloud/app/apps:/var/www/html/apps
+      - /data/nextcloud/app/config:/var/www/html/config
+      - /data/nextcloud/app/data:/var/www/html/data
+
+  news-updater:
+    container_name: nextcloud-news_updater
+    build: ./build_updater
+    depends_on:
+      - app
+    restart: unless-stopped
+    environment:
+      - NEWS_PASSWORD=GenerateNewPassword
